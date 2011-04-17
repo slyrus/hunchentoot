@@ -320,7 +320,7 @@ implementations."))
 is set up via PROCESS-REQUEST."
   (let ((acceptor (taskmaster-acceptor taskmaster)))
     (send-response acceptor
-                   (initialize-connection-stream acceptor (make-socket-stream socket acceptor))
+                   (make-socket-connection (acceptor-socket-connector acceptor) socket)
                    +http-service-unavailable+
                    :content (acceptor-status-message acceptor +http-service-unavailable+))))
 

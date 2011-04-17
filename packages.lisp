@@ -190,8 +190,8 @@
            #:HUNCHENTOOT-CONDITION
            #:HUNCHENTOOT-ERROR
            #:HUNCHENTOOT-WARNING
-           #:INITIALIZE-CONNECTION-STREAM
            #:LOG-MESSAGE*
+           #:MAKE-SOCKET-CONNECTION
            #:MAYBE-INVOKE-DEBUGGER
            #:MIME-TYPE
            #:NEXT-SESSION-ID
@@ -257,7 +257,8 @@
            #:SET-COOKIE*
            #:SHUTDOWN
            #:SINGLE-THREADED-TASKMASTER
-           #-:hunchentoot-no-ssl #:SSL-ACCEPTOR
+           #:SOCKET-CONNECTOR
+           #-:hunchentoot-no-ssl #:SSL-SOCKET-CONNECTOR
            #:SSL-P
            #:START
            #:START-LISTENING

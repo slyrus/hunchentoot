@@ -72,6 +72,13 @@ symbol REPLY.")
 subclass of TASKMASTER) that is responsible for scheduling the work
 for this acceptor.  The default depends on the MP capabilities of the
 underlying Lisp.")
+   (socket-connector :initarg :socket-connector
+                     :reader acceptor-socket-connector
+                     :documentation "The socket-connector for this
+acceptor. Instances of SOCKET-CONNECTOR are used to create a stream
+for a socket. The reason for abstracting this away in its own class is
+so that different types of streams can be used, plain streams, SSL
+encrypted streams, etc...")
    (output-chunking-p :initarg :output-chunking-p
                       :accessor acceptor-output-chunking-p
                       :documentation "A generalized boolean denoting
@@ -173,6 +180,7 @@ acceptor-dispatch-request method handles the request."))
    :listen-backlog 50
    :taskmaster (make-instance (cond (*supports-threads-p* 'one-thread-per-connection-taskmaster)
                                     (t 'single-threaded-taskmaster)))
+   :socket-connector (make-instance 'socket-connector)
    :output-chunking-p t
    :input-chunking-p t
    :persistent-connections-p t
@@ -222,13 +230,6 @@ HANDLE-INCOMING-CONNECTION.  On LispWorks, this function returns
 immediately, on other Lisps it retusn only once the acceptor has been
 stopped."))
 
-(defgeneric initialize-connection-stream (acceptor stream)
- (:documentation "Can be used to modify the stream which is used to
-communicate between client and server before the request is read.  The
-default method of ACCEPTOR does nothing, but see for example the
-method defined for SSL-ACCEPTOR.  All methods of this generic function
-must return the stream to use."))
-
 (defgeneric reset-connection-stream (acceptor stream)
   (:documentation "Resets the stream which is used to communicate
 between client and server after one request has been served so that it
@@ -268,6 +269,9 @@ they're using secure connections - see the SSL-ACCEPTOR class."))
 (defmethod start ((acceptor acceptor))
   (setf (acceptor-shutdown-p acceptor) nil)
   (start-listening acceptor)
+  (let ((socket-connector (acceptor-socket-connector acceptor)))
+    (setf (socket-connector-acceptor socket-connector)
+          acceptor))
   (let ((taskmaster (acceptor-taskmaster acceptor)))
     (setf (taskmaster-acceptor taskmaster) acceptor)
     (execute-acceptor taskmaster))
@@ -286,11 +290,6 @@ they're using secure connections - see the SSL-ACCEPTOR class."))
    (acceptor-listen-socket acceptor))
   (setf (acceptor-listen-socket acceptor) nil)
   acceptor)
-
-(defmethod initialize-connection-stream ((acceptor acceptor) stream)
- (declare (ignore acceptor))
- ;; default method does nothing
- stream)
 
 (defmethod reset-connection-stream ((acceptor acceptor) stream)
   (declare (ignore acceptor))
@@ -342,7 +341,7 @@ they're using secure connections - see the SSL-ACCEPTOR class."))
 
 (defmethod process-connection ((*acceptor* acceptor) (socket t))
   (let ((*hunchentoot-stream*
-         (initialize-connection-stream *acceptor* (make-socket-stream socket *acceptor*))))
+         (make-socket-connection (acceptor-socket-connector *acceptor*) socket)))
     (unwind-protect
         ;; process requests until either the acceptor is shut down,
         ;; *CLOSE-HUNCHENTOOT-STREAM* has been set to T by the
@@ -398,7 +397,7 @@ chunked encoding, but acceptor is configured to not use it.")))))
   
 (defmethod acceptor-ssl-p ((acceptor t))
   ;; the default is to always answer "no"
-  nil)
+  (socket-connector-ssl-p (acceptor-socket-connector acceptor)))
 
 (defgeneric acceptor-log-access (acceptor &key return-code)
   (:documentation
