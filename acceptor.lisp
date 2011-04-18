@@ -29,10 +29,6 @@
 
 (in-package :hunchentoot)
 
-(eval-when (:load-toplevel :compile-toplevel :execute)
-  (defun default-document-directory (&optional sub-directory)
-    (asdf:system-relative-pathname :hunchentoot (format nil "www/~@[~A~]" sub-directory))))
-
 (defclass acceptor ()
   ((port :initarg :port
          :reader acceptor-port
@@ -72,6 +68,11 @@ symbol REPLY.")
 subclass of TASKMASTER) that is responsible for scheduling the work
 for this acceptor.  The default depends on the MP capabilities of the
 underlying Lisp.")
+   (dispatcher :initarg :dispatcher
+               :reader acceptor-dispatcher
+               :documentation "A dispatcher for this acceptor. The
+dispatcher's dispatch-request method is called by the acceptor to
+handle the request.")
    (output-chunking-p :initarg :output-chunking-p
                       :accessor acceptor-output-chunking-p
                       :documentation "A generalized boolean denoting
@@ -158,12 +159,7 @@ stream or to NIL to suppress logging.")
  messages.  Files must be named <return-code>.html with <return-code>
  representing the HTTP return code that the file applies to,
  i.e. 404.html would be used as the content for a HTTP 404 Not found
- response.")
-   (document-root :initarg :document-root
-                  :accessor acceptor-document-root
-                  :documentation "Directory pathname that points to
-files that are served by the acceptor if no more specific
-acceptor-dispatch-request method handles the request."))
+ response."))
   (:default-initargs
    :address nil
    :port 80
@@ -173,6 +169,7 @@ acceptor-dispatch-request method handles the request."))
    :listen-backlog 50
    :taskmaster (make-instance (cond (*supports-threads-p* 'one-thread-per-connection-taskmaster)
                                     (t 'single-threaded-taskmaster)))
+   :dispatcher (make-instance 'dispatcher)
    :output-chunking-p t
    :input-chunking-p t
    :persistent-connections-p t
@@ -180,7 +177,7 @@ acceptor-dispatch-request method handles the request."))
    :write-timeout *default-connection-timeout*
    :access-log-destination *error-output*
    :message-log-destination *error-output*
-   :document-root (load-time-value (default-document-directory))
+   
    :error-template-directory (load-time-value (default-document-directory "errors/")))
   (:documentation "To create a Hunchentoot webserver, you make an
 instance of this class and use the generic function START to start it
@@ -523,16 +520,6 @@ catches during request processing."
   (mp:process-unstop (acceptor-process acceptor))
   nil)
 
-(defmethod acceptor-dispatch-request ((acceptor acceptor) request)
-  "Detault implementation of the request dispatch method, generates a +http-not-found+ error+."
-  (declare (ignore request))
-  (if (acceptor-document-root acceptor)
-      (handle-static-file (merge-pathnames (if (equal (script-name*) "/")
-                                               "index.html"
-                                               (subseq (script-name*) 1))
-                                           (acceptor-document-root acceptor)))
-      (setf (return-code *reply*) +http-not-found+)))
-
 (defmethod handle-request ((*acceptor* acceptor) (*request* request))
   "Standard method for request handling.  Calls the request dispatcher
 of *ACCEPTOR* to determine how the request should be handled.  Also
@@ -553,7 +540,7 @@ handler."
                     (when *log-lisp-warnings-p*
                       (log-message* *lisp-warnings-log-level* "~A" cond)))))
     (with-debugger
-      (acceptor-dispatch-request *acceptor* *request*))))
+      (dispatch-request (acceptor-dispatcher *acceptor*) *request*))))
 
 (defgeneric acceptor-status-message (acceptor http-status-code &key &allow-other-keys)
   (:documentation

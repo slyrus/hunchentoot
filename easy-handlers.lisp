@@ -29,9 +29,6 @@
 
 (in-package :hunchentoot)
 
-(defvar *dispatch-table* (list 'dispatch-easy-handlers)
-  "A global list of dispatch functions.")
-
 (defvar *easy-handler-alist* nil
   "An alist of \(URI acceptor-names function) lists defined by
 DEFINE-EASY-HANDLER.")
@@ -328,15 +325,20 @@ defined with DEFINE-EASY-HANDLER, if there is one."
                         (t (funcall uri request))))
         do (return easy-handler)))
 
-(defclass easy-acceptor (acceptor)
-  ()
-  (:documentation "This is the acceptor of the ``easy'' Hunchentoot framework."))
+(defclass easy-dispatcher (dispatcher)
+  ((dispatch-table
+    :accessor dispatcher-dispatch-table
+    :initarg :dispatch-table
+    :documentation
+    "A global list of dispatch functions."))
+  (:default-initargs
+   :dispatch-table (list 'dispatch-easy-handlers)))
 
-(defmethod acceptor-dispatch-request ((acceptor easy-acceptor) request)
+(defmethod dispatch-request ((dispatcher easy-dispatcher) request)
   "The easy request dispatcher which selects a request handler
 based on a list of individual request dispatchers all of which can
 either return a handler or neglect by returning NIL."
-  (loop for dispatcher in *dispatch-table*
+  (loop for dispatcher in (dispatcher-dispatch-table dispatcher)
      for action = (funcall dispatcher request)
      when action return (funcall action)
      finally (call-next-method)))
