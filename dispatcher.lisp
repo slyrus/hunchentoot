@@ -43,8 +43,14 @@ acceptor-dispatch-request method handles the request."))
   (:default-initargs
    :document-root (load-time-value (default-document-directory))))
 
+(defgeneric dispatch-request (dispatcher request)
+  (:documentation "Takes a dispatcher and a request as arguments and
+fields the requset. Subclasses of dispatcher can override
+DISPATCH-REQUEST to implement new request handling behaviors."))
+
 (defmethod dispatch-request ((dispatcher dispatcher) request)
-  "Detault implementation of the request dispatch method, generates a +http-not-found+ error+."
+  "Detault implementation of the request dispatch method, generates a
++http-not-found+ error+ if handle-static-file fails."
   (declare (ignore request))
   (if (dispatcher-document-root dispatcher)
       (handle-static-file (merge-pathnames (if (equal (script-name*) "/")
